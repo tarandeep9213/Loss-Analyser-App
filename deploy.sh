@@ -15,7 +15,8 @@
 # Environment (optional overrides):
 #   IMAGE_NAME          Docker image name (default: loss-analyser-app)
 #   CONTAINER_NAME      Container name (default: loss-analyser-app)
-#   HOST_PORT           Host port mapped to container port 80 (default: 8080)
+#   VITE_FRONTEND_URL   Local frontend URL (port used for Docker mapping; see .env)
+#   HOST_PORT           Override port (defaults to port from VITE_FRONTEND_URL)
 #   VITE_API_BASE_URL   Backend API URL baked into the build (see .env)
 #
 set -euo pipefail
@@ -25,17 +26,31 @@ cd "$SCRIPT_DIR"
 
 IMAGE_NAME="${IMAGE_NAME:-loss-analyser-app}"
 CONTAINER_NAME="${CONTAINER_NAME:-loss-analyser-app}"
-HOST_PORT="${HOST_PORT:-8080}"
 IMAGE_TAG="${IMAGE_TAG:-latest}"
 
-# Load VITE_API_BASE_URL from .env if present and not already set
-if [[ -f .env && -z "${VITE_API_BASE_URL:-}" ]]; then
-  # shellcheck disable=SC1091
-  set -a
-  source .env
-  set +a
-fi
+load_env() {
+  if [[ -f .env ]]; then
+    # shellcheck disable=SC1091
+    set -a
+    source .env
+    set +a
+  fi
+}
+
+port_from_frontend_url() {
+  local url="${1:-}"
+  if [[ "$url" =~ :([0-9]+)(/|$) ]]; then
+    echo "${BASH_REMATCH[1]}"
+  else
+    echo "7005"
+  fi
+}
+
+load_env
+
 VITE_API_BASE_URL="${VITE_API_BASE_URL:-https://floodbot.cnc.claims:7001}"
+VITE_FRONTEND_URL="${VITE_FRONTEND_URL:-http://localhost:7005}"
+HOST_PORT="${HOST_PORT:-$(port_from_frontend_url "$VITE_FRONTEND_URL")}"
 
 require_docker() {
   if ! command -v docker >/dev/null 2>&1; then
@@ -57,9 +72,10 @@ container_running() {
 }
 
 build_image() {
-  echo "Building image ${IMAGE_NAME}:${IMAGE_TAG} (API: ${VITE_API_BASE_URL})..."
+  echo "Building image ${IMAGE_NAME}:${IMAGE_TAG} (API: ${VITE_API_BASE_URL}, frontend: ${VITE_FRONTEND_URL})..."
   docker build \
     --build-arg "VITE_API_BASE_URL=${VITE_API_BASE_URL}" \
+    --build-arg "VITE_FRONTEND_URL=${VITE_FRONTEND_URL}" \
     -t "${IMAGE_NAME}:${IMAGE_TAG}" \
     .
   echo "Image built: ${IMAGE_NAME}:${IMAGE_TAG}"
@@ -83,7 +99,7 @@ start_container() {
       "${IMAGE_NAME}:${IMAGE_TAG}"
   fi
 
-  echo "App available at http://localhost:${HOST_PORT}"
+  echo "App available at ${VITE_FRONTEND_URL}"
 }
 
 stop_container() {

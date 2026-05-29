@@ -10,7 +10,9 @@ COPY . .
 
 # Vite bakes env vars into the bundle at build time
 ARG VITE_API_BASE_URL=https://floodbot.cnc.claims:7001
+ARG VITE_FRONTEND_URL=http://localhost:7005
 ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
+ENV VITE_FRONTEND_URL=$VITE_FRONTEND_URL
 
 RUN npm run build
 
