@@ -1,0 +1,253 @@
+import { useState, useEffect, useContext } from 'react';
+import {
+  Box,
+  Typography,
+  TextField,
+  Button,
+  Paper,
+  CircularProgress,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  IconButton,
+} from '@mui/material';
+import {
+  Edit as EditIcon,
+  Save as SaveIcon,
+  Close as CloseIcon,
+  Info as InfoIcon,
+} from '@mui/icons-material';
+import GenerateGuidanceReport from '../components/GenerateGuidanceReport';
+import SuccessPopup from '../components/SuccessPopup';
+import { UserRoleContext } from '../components/layout/AuthLayout';
+
+function ReportSummary({ reportId }) {
+  const [isEditingSummary, setIsEditingSummary] = useState(false);
+  const [summary, setSummary] = useState('');
+  const [originalSummary, setOriginalSummary] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
+  const [openDialog, setOpenDialog] = useState(false);
+  const [hasChanges, setHasChanges] = useState(false);
+  const [showSuccessPopup, setShowSuccessPopup] = useState(false);
+  const userRole = useContext(UserRoleContext);
+
+  useEffect(() => {
+    const fetchSummaryData = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+
+        if (!reportId) {
+          setError('Report ID is required to load the summary.');
+          setLoading(false);
+          return;
+        }
+
+        // Mock summary data
+        const response = {
+          data: {
+            summary: "This is a mock summary for the loss report. The property sustained significant wind and hail damage. All interior damages have been reviewed and validated against the submitted estimates."
+          }
+        };
+
+        const { summary: reportSummary } = response.data;
+        setSummary(reportSummary || '');
+        setOriginalSummary(reportSummary || '');
+
+        setLoading(false);
+      } catch (error) {
+        console.error('Error fetching summary data:', error);
+        setError(error.response?.data?.message || 'Failed to load summary data. Please try again.');
+        setLoading(false);
+      }
+    };
+
+    fetchSummaryData();
+  }, [reportId]);
+
+  const handleEditClick = () => {
+    setOpenDialog(true);
+  };
+
+  const handleDialogClose = () => {
+    setOpenDialog(false);
+  };
+
+  const handleConfirmEdit = () => {
+    setOpenDialog(false);
+    setIsEditingSummary(true);
+  };
+
+  const handleSaveSummary = async () => {
+    try {
+      setSaving(true);
+      setError(null);
+
+      if (!reportId) {
+        throw new Error('Invalid report ID');
+      }
+
+      // Mock saving API
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      setOriginalSummary(summary);
+      setIsEditingSummary(false);
+      setHasChanges(summary == originalSummary ? false : true);
+      setShowSuccessPopup(true);
+    } catch (error) {
+      console.error('Error saving summary:', error);
+      setError(
+        error.response?.data?.message ||
+          'Failed to save summary. Please try again.'
+      );
+      // Revert to original summary on error
+      setSummary(originalSummary);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleCancelSummary = () => {
+    setSummary(originalSummary);
+    setIsEditingSummary(false);
+  };
+
+  return (
+    <Box>
+      {error ? (
+        <Paper sx={{ p: 2, mb: 2 }}>
+          <Typography color="error" align="center">
+            {error}
+          </Typography>
+        </Paper>
+      ) : loading ? (
+        <Paper sx={{ p: 2, mb: 2 }}>
+          <Box sx={{ display: 'flex', justifyContent: 'center' }}>
+            <CircularProgress />
+          </Box>
+        </Paper>
+      ) : (
+        <>
+          <Paper sx={{ p: 2, mb: 2 }}>
+            <Box sx={{ display: 'flex', flexDirection: 'column' }}>
+              <Box
+                sx={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  mb: 2,
+                  alignItems: 'center',
+                }}
+              >
+                <Typography variant="h6">Report Summary</Typography>
+                <Box sx={{ display: 'flex', gap: 1 }}>
+                  {isEditingSummary && userRole !== 'Adjuster' && (
+                    <Button onClick={handleCancelSummary} disabled={saving}>
+                      Cancel
+                    </Button>
+                  )}
+                  {userRole !== 'Adjuster' && (
+                    <Button
+                      variant="contained"
+                      startIcon={isEditingSummary ? <SaveIcon /> : <EditIcon />}
+                      onClick={isEditingSummary ? handleSaveSummary : handleEditClick}
+                      disabled={saving}
+                    >
+                      {isEditingSummary ? (saving ? 'Saving...' : 'Save') : 'Edit'}
+                    </Button>
+                  )}
+                  <GenerateGuidanceReport
+                    reportId={reportId}
+                    hasSummaryChanges={hasChanges}
+                    onError={setError}
+                  />
+                </Box>
+              </Box>
+              <TextField
+                fullWidth
+                multiline
+                minRows={10}
+                value={summary}
+                onChange={(e) => setSummary(e.target.value)}
+                disabled={userRole === 'Adjuster' || !isEditingSummary || saving}
+                variant="standard"
+                InputProps={{
+                  disableUnderline: !isEditingSummary,
+                }}
+                sx={{
+                  '& .MuiInputBase-input.Mui-disabled': {
+                    WebkitTextFillColor: 'unset',
+                    color: 'text.primary',
+                    padding: 0,
+                    opacity: 1,
+                  },
+                  '& .MuiInputBase-root': {
+                    padding: 0,
+                  },
+                }}
+              />
+            </Box>
+          </Paper>
+          <SuccessPopup
+            open={showSuccessPopup}
+            onClose={() => setShowSuccessPopup(false)}
+          />
+        </>
+      )}
+
+      <Dialog
+        open={openDialog}
+        onClose={handleDialogClose}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 1,
+            pb: 1,
+          }}
+        >
+          <InfoIcon sx={{ color: 'warning.main' }} />
+          <Typography variant="h6">Edit Information</Typography>
+          <IconButton
+            aria-label="close"
+            onClick={handleDialogClose}
+            sx={{
+              position: 'absolute',
+              right: 8,
+              top: 8,
+            }}
+          >
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent>
+          <Typography variant="body1" sx={{ mt: 2, textAlign: 'justify' }}>
+            Your updated information will be used for model fine-tuning,
+            enhancing its performance. Providing detailed explanations and
+            reasoning will further improve its accuracy and effectiveness over
+            time.
+          </Typography>
+        </DialogContent>
+        {userRole !== 'Adjuster' && (
+          <DialogActions sx={{ p: 2, pt: 0 }}>
+            <Button onClick={handleDialogClose}>Cancel</Button>
+            <Button
+              variant="contained"
+              onClick={handleConfirmEdit}
+              startIcon={<EditIcon />}
+            >
+              Continue Editing
+            </Button>
+          </DialogActions>
+        )}
+      </Dialog>
+    </Box>
+  );
+}
+
+export default ReportSummary;
